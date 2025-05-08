@@ -1,0 +1,10 @@
+organization: "PipelineOrg"
+teams:
+  - admin
+  - sre
+  - dev
+admin_user:
+  - "pipeline_admin1"
+  - "pipeline_admin2"
+sre_user:
+  - "pipeline_sre1"

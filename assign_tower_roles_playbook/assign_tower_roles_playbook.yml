@@ -1,0 +1,193 @@
+---
+- name: Assign Tower Roles Playbook (all resources)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  # Remove vars_files. Use --extra-vars '@config/prod.yml' or similar when running the playbook.
+
+  tasks:
+    - name: Ensure organization exists
+      tower_organization:
+        name: "{{ organization }}"
+        state: present
+
+    - name: Ensure teams exist
+      tower_team:
+        name: "{{ item }}"
+        organization: "{{ organization }}"
+        state: present
+      loop: "{{ teams }}"
+
+    - name: Export all projects to file
+      shell: tower-cli project list -f yaml > all_projects.yaml
+      args:
+        chdir: "{{ playbook_dir }}"
+
+    - name: Export all job templates to file
+      shell: tower-cli job_template list -f yaml > all_jts.yaml
+      args:
+        chdir: "{{ playbook_dir }}"
+
+    - name: Export all credentials to file
+      shell: tower-cli credential list -f yaml > all_credentials.yaml
+      args:
+        chdir: "{{ playbook_dir }}"
+
+    - name: Export all inventories to file
+      shell: tower-cli inventory list -f yaml > all_inventories.yaml
+      args:
+        chdir: "{{ playbook_dir }}"
+
+    - name: Export all users to file
+      shell: tower-cli user list -f yaml > all_users.yaml
+      args:
+        chdir: "{{ playbook_dir }}"
+
+    - name: Load all projects
+      set_fact:
+        all_projects: "{{ lookup('file', 'all_projects.yaml') | from_yaml }}"
+
+    - name: Load all job templates
+      set_fact:
+        all_jts: "{{ lookup('file', 'all_jts.yaml') | from_yaml }}"
+
+    - name: Load all credentials
+      set_fact:
+        all_credentials: "{{ lookup('file', 'all_credentials.yaml') | from_yaml }}"
+
+    - name: Load all inventories
+      set_fact:
+        all_inventories: "{{ lookup('file', 'all_inventories.yaml') | from_yaml }}"
+
+    - name: Load all users
+      set_fact:
+        all_users: "{{ lookup('file', 'all_users.yaml') | from_yaml }}"
+
+    - name: Calculate dev_user list (users not in admin_user or sre_user)
+      set_fact:
+        dev_user: >-
+          {{ all_users | map(attribute='username') | difference(admin_user + sre_user) }}
+
+    - name: Add admin_user to admin team
+      tower_role:
+        user: "{{ item }}"
+        team: "admin"
+        role: member
+        state: present
+      loop: "{{ admin_user }}"
+
+    - name: Add sre_user to sre team
+      tower_role:
+        user: "{{ item }}"
+        team: "sre"
+        role: member
+        state: present
+      loop: "{{ sre_user }}"
+
+    - name: Add dev_user to dev team
+      tower_role:
+        user: "{{ item }}"
+        team: "dev"
+        role: member
+        state: present
+      loop: "{{ dev_user }}"
+
+    # admin team
+    - name: Grant admin roles to admin team for all projects
+      tower_role:
+        team: "admin"
+        project: "{{ item.name }}"
+        role: admin
+        state: present
+      loop: "{{ all_projects }}"
+
+    - name: Grant admin roles to admin team for all job templates
+      tower_role:
+        team: "admin"
+        job_template: "{{ item.name }}"
+        role: admin
+        state: present
+      loop: "{{ all_jts }}"
+
+    - name: Grant admin roles to admin team for all inventories
+      tower_role:
+        team: "admin"
+        inventory: "{{ item.name }}"
+        role: admin
+        state: present
+      loop: "{{ all_inventories }}"
+
+    - name: Grant admin roles to admin team for all credentials
+      tower_role:
+        team: "admin"
+        credential: "{{ item.name }}"
+        role: admin
+        state: present
+      loop: "{{ all_credentials }}"
+
+    # sre team
+    - name: Grant admin role to sre team for all job templates
+      tower_role:
+        team: "sre"
+        job_template: "{{ item.name }}"
+        role: admin
+        state: present
+      loop: "{{ all_jts }}"
+
+    - name: Grant use role to sre team for all projects
+      tower_role:
+        team: "sre"
+        project: "{{ item.name }}"
+        role: use
+        state: present
+      loop: "{{ all_projects }}"
+
+    - name: Grant use role to sre team for all inventories
+      tower_role:
+        team: "sre"
+        inventory: "{{ item.name }}"
+        role: use
+        state: present
+      loop: "{{ all_inventories }}"
+
+    - name: Grant use role to sre team for all credentials
+      tower_role:
+        team: "sre"
+        credential: "{{ item.name }}"
+        role: use
+        state: present
+      loop: "{{ all_credentials }}"
+
+    # dev team
+    - name: Grant execute role to dev team for all job templates
+      tower_role:
+        team: "dev"
+        job_template: "{{ item.name }}"
+        role: execute
+        state: present
+      loop: "{{ all_jts }}"
+
+    - name: Grant use role to dev team for all projects
+      tower_role:
+        team: "dev"
+        project: "{{ item.name }}"
+        role: use
+        state: present
+      loop: "{{ all_projects }}"
+
+    - name: Grant use role to dev team for all inventories
+      tower_role:
+        team: "dev"
+        inventory: "{{ item.name }}"
+        role: use
+        state: present
+      loop: "{{ all_inventories }}"
+
+    - name: Grant use role to dev team for all credentials
+      tower_role:
+        team: "dev"
+        credential: "{{ item.name }}"
+        role: use
+        state: present
+      loop: "{{ all_credentials }}"

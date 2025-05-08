@@ -1,0 +1,9 @@
+organization: "SandboxOrg"
+teams:
+  - admin
+  - sre
+  - dev
+admin_user:
+  - "sandbox_admin"
+sre_user:
+  - "sandbox_sre"

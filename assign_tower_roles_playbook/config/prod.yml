@@ -1,0 +1,11 @@
+organization: "Default"
+teams:
+  - admin
+  - sre
+  - dev
+admin_user:
+  - "alice"
+  - "bob"
+sre_user:
+  - "carol"
+  - "dave"
