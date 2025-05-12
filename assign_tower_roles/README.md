@@ -1,4 +1,3 @@
-
 # assign_tower_roles.sh
 
 ## Overview
@@ -88,6 +87,22 @@ Total roles considered:     12
 Roles already assigned:     6
 Roles needing assignment:   6
 ```
+
+## Permission Matrix Configuration
+
+This script uses a declarative configuration for team/resource/role assignments.
+
+- **To add or remove a team:**
+  - Edit the `TEAMS` array in `assign_tower_roles.sh`, e.g. `TEAMS=(admin sre dev qa)`
+- **To add or remove a resource type:**
+  - Edit the `RESOURCE_TYPES` array, e.g. `RESOURCE_TYPES=(inventory project credential job_template)`
+- **To define or change permissions:**
+  - Edit the `TEAM_RESOURCE_ROLES` associative array.
+  - The key is in the format: `<team>_<resource_type>`
+  - The value is a comma-separated list of roles (e.g. `admin`, `use`, `execute`).
+  - Example: `TEAM_RESOURCE_ROLES[qa_project]=use,admin`
+
+This makes it easy to maintain and extend team/resource/role assignments without changing the main logic.
 
 ## Notes
 

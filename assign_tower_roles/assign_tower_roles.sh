@@ -51,41 +51,37 @@ check_tower_cli_auth() {
 
 check_tower_cli_auth
 
-# Function to get first resource name with pagination
-get_first_resource_name() {
-  local type=$1
-  local page=1
-  while true; do
-    data=$(tower-cli $type list --page $page -f json)
-    if [[ $(echo "$data" | jq length) -eq 0 ]]; then
-      break
-    fi
-    name=$(echo "$data" | jq -r '.[0].name')
-    if [[ -n "$name" ]]; then
-      echo "$name"
-      return
-    fi
-    page=$((page + 1))
-  done
-  echo ""
+# Detect resources
+# 导出所有资源到临时文件
+
+echo "Exporting all resources to temporary files..."
+tower-cli project list -f json -a > all_projects.json
+tower-cli job_template list -f json -a > all_jts.json
+tower-cli inventory list -f json -a > all_inventories.json
+tower-cli credential list -f json -a > all_credentials.json
+
+echo "Loading resource names from files..."
+
+get_resource_names() {
+  local file=$1
+  jq -r '.results[].name' "$file"
 }
 
-# Detect resources
-PROJECT=$(get_first_resource_name project)
-JOB_TEMPLATE=$(get_first_resource_name job_template)
-INVENTORY=$(get_first_resource_name inventory)
-CREDENTIAL=$(get_first_resource_name credential)
+PROJECTS=( $(get_resource_names all_projects.json) )
+JOB_TEMPLATES=( $(get_resource_names all_jts.json) )
+INVENTORIES=( $(get_resource_names all_inventories.json) )
+CREDENTIALS=( $(get_resource_names all_credentials.json) )
 
-if [[ -z "$PROJECT" || -z "$JOB_TEMPLATE" || -z "$INVENTORY" || -z "$CREDENTIAL" ]]; then
+if [[ ${#PROJECTS[@]} -eq 0 || ${#JOB_TEMPLATES[@]} -eq 0 || ${#INVENTORIES[@]} -eq 0 || ${#CREDENTIALS[@]} -eq 0 ]]; then
   echo "Error: Required resources not found."
   exit 1
 fi
 
 echo "Detected resources:"
-echo "- Project:       $PROJECT"
-echo "- Job Template:  $JOB_TEMPLATE"
-echo "- Inventory:     $INVENTORY"
-echo "- Credential:    $CREDENTIAL"
+echo "- Projects:      ${PROJECTS[*]}"
+echo "- Job Templates: ${JOB_TEMPLATES[*]}"
+echo "- Inventories:   ${INVENTORIES[*]}"
+echo "- Credentials:   ${CREDENTIALS[*]}"
 echo ""
 
 # Auto-create teams if missing
@@ -142,28 +138,67 @@ grant_role() {
   fi
 }
 
-# Assign roles
-total=0
-already_assigned=0
-to_assign=0
+# =====================
+# Declarative Permission Matrix Configuration
+# =====================
+#
+# To add or remove a team:
+#   - Edit the TEAMS array, e.g. TEAMS=(admin sre dev qa)
+#
+# To add or remove a resource type:
+#   - Edit the RESOURCE_TYPES array, e.g. RESOURCE_TYPES=(inventory project credential job_template)
+#
+# To define or change permissions:
+#   - Edit the TEAM_RESOURCE_ROLES associative array.
+#   - The key is in the format: <team>_<resource_type>
+#   - The value is a comma-separated list of roles (e.g. "admin", "use", "execute").
+#   - Example: TEAM_RESOURCE_ROLES[qa_project]=use,admin
+#
+# This makes it easy to maintain and extend team/resource/role assignments.
 
-for team in admin sre dev; do
-  if [[ "$team" == "admin" ]]; then
-    grant_role "$team" inventory "$INVENTORY" admin
-    grant_role "$team" project "$PROJECT" admin
-    grant_role "$team" credential "$CREDENTIAL" admin
-    grant_role "$team" job_template "$JOB_TEMPLATE" admin
-  elif [[ "$team" == "sre" ]]; then
-    grant_role "$team" job_template "$JOB_TEMPLATE" admin
-    grant_role "$team" inventory "$INVENTORY" use
-    grant_role "$team" project "$PROJECT" use
-    grant_role "$team" credential "$CREDENTIAL" use
-  elif [[ "$team" == "dev" ]]; then
-    grant_role "$team" job_template "$JOB_TEMPLATE" execute
-    grant_role "$team" inventory "$INVENTORY" use
-    grant_role "$team" project "$PROJECT" use
-    grant_role "$team" credential "$CREDENTIAL" use
-  fi
+# 定义所有 team
+TEAMS=(admin sre dev)
+
+# 定义所有资源类型
+RESOURCE_TYPES=(inventory project credential job_template)
+
+# 定义权限矩阵（格式：team_resource=role1,role2,...）
+declare -A TEAM_RESOURCE_ROLES
+TEAM_RESOURCE_ROLES[admin_inventory]=admin
+TEAM_RESOURCE_ROLES[admin_project]=admin
+TEAM_RESOURCE_ROLES[admin_credential]=admin
+TEAM_RESOURCE_ROLES[admin_job_template]=admin
+
+TEAM_RESOURCE_ROLES[sre_inventory]=use
+TEAM_RESOURCE_ROLES[sre_project]=use
+TEAM_RESOURCE_ROLES[sre_credential]=use
+TEAM_RESOURCE_ROLES[sre_job_template]=admin
+
+TEAM_RESOURCE_ROLES[dev_inventory]=use
+TEAM_RESOURCE_ROLES[dev_project]=use
+TEAM_RESOURCE_ROLES[dev_credential]=use
+TEAM_RESOURCE_ROLES[dev_job_template]=execute
+
+# =====================
+# 权限分配主循环
+# =====================
+
+for team in "${TEAMS[@]}"; do
+  for resource_type in "${RESOURCE_TYPES[@]}"; do
+    # 取资源数组变量名（如 INVENTORIES, PROJECTS ...）
+    resource_var_name=$(echo "${resource_type^^}S") # 变大写加S
+    resources=("${!resource_var_name}")
+
+    # 取权限，支持多个权限
+    roles_csv="${TEAM_RESOURCE_ROLES[${team}_${resource_type}]}"
+    IFS=',' read -ra roles <<< "$roles_csv"
+
+    for resource in "${resources[@]}"; do
+      for role in "${roles[@]}"; do
+        grant_role "$team" "$resource_type" "$resource" "$role"
+      done
+    done
+  done
 done
 
 echo ""
