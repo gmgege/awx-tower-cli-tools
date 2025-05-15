@@ -138,6 +138,17 @@ grant_role() {
   fi
 }
 
+# Export roles to JSON files
+echo "Exporting all roles to temporary files..."
+tower-cli role list -f json -a > all_roles.json
+
+# Parse roles from JSON
+get_roles() {
+  local team=$1
+  local resource_type=$2
+  jq -r --arg team "$team" --arg type "$resource_type" '.results[] | select(.team_name == $team and .resource_type == $type) | .name' all_roles.json
+}
+
 # =====================
 # Declarative Permission Matrix Configuration
 # =====================
@@ -189,9 +200,8 @@ for team in "${TEAMS[@]}"; do
     resource_var_name=$(echo "${resource_type^^}S") # 变大写加S
     resources=("${!resource_var_name}")
 
-    # 取权限，支持多个权限
-    roles_csv="${TEAM_RESOURCE_ROLES[${team}_${resource_type}]}"
-    IFS=',' read -ra roles <<< "$roles_csv"
+    # 直接从JSON获取角色列表
+    roles=( $(get_roles "$team" "$resource_type") )
 
     for resource in "${resources[@]}"; do
       for role in "${roles[@]}"; do
