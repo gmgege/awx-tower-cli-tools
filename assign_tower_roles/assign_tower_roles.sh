@@ -103,12 +103,12 @@ done
 # Check if role already assigned
 role_exists() {
   local team=$1
-  local resource=$2
-  local name=$3
+  local resource_type=$2
+  local resource_name=$3
   local role=$4
   local page=1
   while true; do
-    data=$(tower-cli role list --type "$resource" --name "$name" --team "$team" --page $page -f json)
+    data=$(tower-cli role list --type "$resource_type" --name "$resource_name" --team "$team" --page $page -f json)
     if [[ $(echo "$data" | jq length) -eq 0 ]]; then
       break
     fi
@@ -122,18 +122,18 @@ role_exists() {
 
 # Grant role if not already granted
 grant_role() {
-  local team=$1 resource=$2 name=$3 role=$4
+  local team=$1 resource_type=$2 resource_name=$3 role=$4
   ((total++))
-  if role_exists "$team" "$resource" "$name" "$role"; then
+  if role_exists "$team" "$resource_type" "$resource_name" "$role"; then
     ((already_assigned++))
-    echo "✓ [$team] already has [$role] on [$resource:$name], skipped."
+    echo "✓ [$team] already has [$role] on [$resource_type:$resource_name], skipped."
   else
     ((to_assign++))
     if $DRY_RUN; then
-      echo "[Dry Run] Would grant [$role] to [$team] on [$resource:$name]"
+      echo "[Dry Run] Would grant [$role] to [$team] on [$resource_type:$resource_name]"
     else
-      echo "Granting [$role] to [$team] on [$resource:$name]..."
-      tower-cli role grant --type "$resource" --name "$name" --team "$team" --role "$role"
+      echo "Granting [$role] to [$team] on [$resource_type:$resource_name]..."
+      tower-cli role grant --role "$role" --team "$team" --"$resource_type" "$resource_name"
     fi
   fi
 }
