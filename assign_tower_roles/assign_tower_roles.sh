@@ -88,7 +88,7 @@ echo ""
 ensure_team_exists() {
   local team_name=$1
   local org_name="Default"
-  if tower-cli team list --organization "$org_name" -f json | jq -e ".[] | select(.name == \"$team_name\")" >/dev/null; then
+  if tower-cli team list --organization "$org_name" -f json | jq -e ".results[] | select(.name == \"$team_name\")" >/dev/null; then
     echo "Team [$team_name] already exists."
   else
     echo "Creating team [$team_name]..."
@@ -112,7 +112,7 @@ role_exists() {
     if [[ $(echo "$data" | jq length) -eq 0 ]]; then
       break
     fi
-    if echo "$data" | jq -e ".[] | select(.name == \"$role\")" >/dev/null; then
+    if echo "$data" | jq -e ".results[] | select(.name == \"$role\")" >/dev/null; then
       return 0
     fi
     page=$((page + 1))
